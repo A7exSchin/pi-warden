@@ -429,8 +429,8 @@ export default function piWarden(pi: ExtensionAPI) {
 		if (!ctx.hasUI) return;
 		const gov = governanceUnlocked ? " · GOV-UNLOCKED" : "";
 		const label = warn
-			? "pi-warden: inactive (config missing/invalid)"
-			: `pi-warden: ${compiled.commands.length} cmd / ${compiled.paths.length} path rule(s)${gov}`;
+			? ctx.ui.theme.fg("dim", "pi-warden: inactive (config missing/invalid)")
+			: ctx.ui.theme.fg("dim", `pi-warden: ${compiled.commands.length} cmd / ${compiled.paths.length} path rule(s)${gov}`);
 		ctx.ui.setStatus("pi-warden", label);
 	}
 
