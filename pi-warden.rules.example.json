@@ -1,0 +1,35 @@
+{
+  "_comment": "pi-warden config. 'commands' = content rules (substring/regex) on bash commands, block-wins. 'paths' = directory containment across read/write/edit AND bash, longest-prefix wins; each path rule has on=read|write|any (default any) and action=block|allow|confirm. Each section default 'allow'=blacklist, 'block'=whitelist. /pi-warden governance unlock bypasses path rules for the session.",
+  "commands": {
+    "default": "allow",
+    "rules": [
+      {
+        "id": "no-rm-rf",
+        "match": "substring",
+        "value": "rm -rf",
+        "case_sensitive": false,
+        "action": "block",
+        "reason": "Recursive force-delete is reserved for the user. Note the path and ask them to run it."
+      }
+    ]
+  },
+  "paths": {
+    "default": "allow",
+    "rules": [
+      {
+        "id": "ssh-dir",
+        "dir": "~/.ssh",
+        "on": "any",
+        "action": "block",
+        "reason": "The ~/.ssh directory is off-limits to the agent. Ask the user to provide what you need directly."
+      },
+      {
+        "id": "rulebook-readonly",
+        "dir": "~/GitLib/dev.a7exschin.knowledge/_core",
+        "on": "write",
+        "action": "confirm",
+        "reason": "The vault rulebook (_core/) is readable, but writes need your confirmation — the agent must not rewrite the rules autonomously."
+      }
+    ]
+  }
+}
