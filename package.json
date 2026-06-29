@@ -1,15 +1,26 @@
 {
   "name": "pi-warden",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Pi extension that blocks or gates tool calls based on command-content and path-containment rules.",
-  "keywords": ["pi-package"],
+  "keywords": [
+    "pi-package"
+  ],
   "license": "MIT",
   "author": "Alex Schindler",
   "repository": {
     "type": "git",
     "url": "https://github.com/A7exSchin/pi-warden.git"
   },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
   "pi": {
-    "extensions": ["./extensions"]
+    "extensions": [
+      "./extensions"
+    ]
+  },
+  "devDependencies": {
+    "vitest": "^4.1.9"
   }
 }
