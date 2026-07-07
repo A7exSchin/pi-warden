@@ -18,7 +18,7 @@
  *              block WRITES to a rulebook while leaving reads free — and an
  *              `action` of "block", "allow", or "confirm" (ask the user
  *              interactively, proceed only if approved; fail closed with no UI).
- *              `/pi-warden governance unlock` bypasses ALL path protections for
+ *              `/warden governance unlock` bypasses ALL path protections for
  *              the session (command rules stay active); `lock` re-enables them.
  *
  * A call is blocked if EITHER section blocks it (block-wins across sections).
@@ -38,7 +38,7 @@
  * Config: JSON at ~/.pi/agent/pi-warden.rules.json (override via env
  * PI_WARDEN_RULES). See `pi-warden.rules.example.json`.
  *
- * Commands: /pi-warden [status|list|reload|governance [unlock|lock]].
+ * Commands: /warden [status|list|reload|governance [unlock|lock]].
  *
  * Every block feeds a fixed policy preamble back to the model (BLOCK_PREAMBLE):
  * it states this is the user's policy and instructs the agent not to route
@@ -107,7 +107,7 @@ export default function piWarden(pi: ExtensionAPI) {
 					block: true,
 					reason: composeReason(
 						`${dec.reason ?? "Protected path."} There is no interactive prompt available to confirm; ` +
-							"if the user authorizes this, they can run /pi-warden governance unlock.",
+							"if the user authorizes this, they can run /warden governance unlock.",
 					),
 				};
 			}
@@ -128,9 +128,9 @@ export default function piWarden(pi: ExtensionAPI) {
 		return undefined;
 	});
 
-	pi.registerCommand("pi-warden", {
+	pi.registerCommand("warden", {
 		description:
-			"pi-warden: status / list / reload / governance. Usage: /pi-warden [status|list|reload|governance [unlock|lock]]",
+			"pi-warden: status / list / reload / governance. Usage: /warden [status|list|reload|governance [unlock|lock]]",
 		handler: async (args, ctx) => {
 			const toks = args.trim().split(/\s+/).filter(Boolean);
 			const sub = (toks[0] ?? "").toLowerCase();
@@ -140,7 +140,7 @@ export default function piWarden(pi: ExtensionAPI) {
 					governanceUnlocked = true;
 					ctx.ui.notify(
 						"pi-warden: governance UNLOCKED for this session — path protections (block + confirm) are bypassed. " +
-							"Command rules still apply. Re-lock with /pi-warden governance lock.",
+							"Command rules still apply. Re-lock with /warden governance lock.",
 						"warning",
 					);
 				} else if (g === "lock") {
@@ -149,7 +149,7 @@ export default function piWarden(pi: ExtensionAPI) {
 				} else {
 					ctx.ui.notify(
 						`pi-warden: governance is ${governanceUnlocked ? "UNLOCKED (path protections bypassed)" : "locked"}. ` +
-							"Usage: /pi-warden governance unlock|lock",
+							"Usage: /warden governance unlock|lock",
 						"info",
 					);
 				}

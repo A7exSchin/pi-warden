@@ -2,7 +2,7 @@ import type { GateConfig, CompiledSet } from "./types.js";
 import { fallback } from "./types.js";
 
 /**
- * Format all rules (enabled + disabled) for the `/pi-warden list` output.
+ * Format all rules (enabled + disabled) for the `/warden list` output.
  */
 export function listRules(config: GateConfig, compiled: CompiledSet, governanceUnlocked: boolean): string {
 	const lines: string[] = [];

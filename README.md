@@ -109,13 +109,13 @@ Config lives at `~/.pi/agent/pi-warden.rules.json` (override with env `PI_WARDEN
 ## Commands
 
 ```
-/pi-warden              Show status
-/pi-warden status       Show status
-/pi-warden list         List all rules with state
-/pi-warden reload       Re-read config from disk
-/pi-warden governance unlock   Bypass path protections for this session
-/pi-warden governance lock     Re-enable path protections
-/pi-warden governance          Show governance state
+/warden              Show status
+/warden status       Show status
+/warden list         List all rules with state
+/warden reload       Re-read config from disk
+/warden governance unlock   Bypass path protections for this session
+/warden governance lock     Re-enable path protections
+/warden governance          Show governance state
 ```
 
 **Governance unlock** bypasses all path rules (block + confirm) for the session. Command rules still apply. Resets on `/reload` or restart.
