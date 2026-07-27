@@ -38,18 +38,85 @@ export function isPathUnder(child: string, dir: string): boolean {
 	return child.startsWith(dir.endsWith(path.sep) ? dir : dir + path.sep);
 }
 
+/** Unquoted characters that terminate a token (whitespace handled separately). */
+const SHELL_DELIMS = new Set([";", "|", "&", "(", ")", "<", ">", "=", "`"]);
+
 /**
- * Best-effort extraction of path-like tokens from a shell command. Splits on
- * whitespace and shell metacharacters, then keeps tokens that look like paths
- * (contain "/" or start with "~"). Heuristic — see SCOPE LIMIT in the header.
+ * Best-effort extraction of path-like tokens from a shell command. Walks the
+ * string with quote state so a quoted path containing spaces stays one token,
+ * then keeps tokens that look like paths (contain "/" or start with "~").
  *
- * NOTE: quoted spans are intentionally NOT stripped here (unlike stripQuoted in
- * evaluator.ts). Quoting is the normal way to pass a path containing spaces, so
- * discarding quoted text would hide real paths from the path rules.
+ * Quote characters are consumed as state changes and never emitted, so
+ * `cat "/my dir/file"` yields `/my dir/file`. The previous implementation split
+ * *on* quote characters, fragmenting that into `/my` + `dir/file` — neither of
+ * which resolves to the real path, which let a quoted path bypass any rule
+ * whose directory contains a space.
+ *
+ * An unterminated quote flushes at EOF, so a malformed command still yields
+ * candidates rather than silently dropping them (fail toward more checks).
+ *
+ * NOTE: quoted spans are intentionally preserved here, unlike stripQuoted in
+ * evaluator.ts, which blanks them for write-verb detection. Quoting is the
+ * normal way to pass a path containing spaces, so discarding quoted text would
+ * hide real paths from the path rules. The two must not be unified: write
+ * intent needs unquoted metacharacters like `>` to survive, which tokenizing
+ * discards.
+ *
+ * SCOPE LIMIT: heuristic — see the header. Variable expansion ($HOME), command
+ * substitution ($(...)) and encoded payloads are not resolved.
  */
 export function extractPathTokens(cmd: string): string[] {
-	return cmd
-		.slice(0, MAX_TEST_LEN)
-		.split(/[\s;|&()<>"'`=]+/)
-		.filter((t) => t.length > 0 && (t.includes("/") || t.startsWith("~")));
+	const src = cmd.slice(0, MAX_TEST_LEN);
+	const tokens: string[] = [];
+	let cur = "";
+	let started = false; // distinguishes "" (an empty quoted token) from no token
+	let quote: '"' | "'" | null = null;
+
+	const flush = (): void => {
+		if (started) tokens.push(cur);
+		cur = "";
+		started = false;
+	};
+
+	for (let i = 0; i < src.length; i++) {
+		const ch = src[i] as string;
+
+		if (quote === "'") {
+			// Single quotes are literal in POSIX sh: no escapes, ends only at '.
+			if (ch === "'") quote = null;
+			else cur += ch;
+			continue;
+		}
+
+		if (quote === '"') {
+			if (ch === "\\" && i + 1 < src.length) {
+				cur += src[++i] as string; // \" and \\ keep the next char literally
+			} else if (ch === '"') {
+				quote = null;
+			} else {
+				cur += ch;
+			}
+			continue;
+		}
+
+		if (ch === "\\" && i + 1 < src.length) {
+			cur += src[++i] as string; // escaped space etc. joins the token
+			started = true;
+			continue;
+		}
+		if (ch === '"' || ch === "'") {
+			quote = ch;
+			started = true;
+			continue;
+		}
+		if (/\s/.test(ch) || SHELL_DELIMS.has(ch)) {
+			flush();
+			continue;
+		}
+		cur += ch;
+		started = true;
+	}
+	flush(); // unterminated quote: keep what we have
+
+	return tokens.filter((t) => t.length > 0 && (t.includes("/") || t.startsWith("~")));
 }

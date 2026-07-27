@@ -102,4 +102,40 @@ describe("extractPathTokens", () => {
 		const tokens = extractPathTokens("echo hello world");
 		expect(tokens).toHaveLength(0);
 	});
+
+	it("keeps a quoted path containing spaces as one token", () => {
+		expect(extractPathTokens('cat "/my dir/file"')).toEqual(["/my dir/file"]);
+		expect(extractPathTokens("cat '/my dir/file'")).toEqual(["/my dir/file"]);
+		expect(extractPathTokens('rm "/tmp/a b/secret.txt"')).toEqual(["/tmp/a b/secret.txt"]);
+	});
+
+	it("handles escaped spaces outside quotes", () => {
+		expect(extractPathTokens("cat /my\\ dir/file")).toEqual(["/my dir/file"]);
+	});
+
+	it("handles escaped quotes inside double quotes", () => {
+		expect(extractPathTokens('cat "/tmp/we\\"ird/file"')).toEqual(['/tmp/we"ird/file']);
+	});
+
+	it("treats single quotes as literal (no escape processing)", () => {
+		expect(extractPathTokens("cat '/tmp/back\\slash'")).toEqual(["/tmp/back\\slash"]);
+	});
+
+	it("splits on = so --flag=/path still yields the path", () => {
+		expect(extractPathTokens("cmd --file=/etc/passwd")).toContain("/etc/passwd");
+		expect(extractPathTokens('cmd --file="/my dir/x"')).toContain("/my dir/x");
+	});
+
+	it("flushes an unterminated quote instead of dropping it", () => {
+		expect(extractPathTokens('cat "/tmp/a')).toEqual(["/tmp/a"]);
+		expect(extractPathTokens("cat '/tmp/a b")).toEqual(["/tmp/a b"]);
+	});
+
+	it("does not treat quoted metacharacters as delimiters", () => {
+		expect(extractPathTokens('cat "/tmp/a;b|c/file"')).toEqual(["/tmp/a;b|c/file"]);
+	});
+
+	it("still separates adjacent redirect targets", () => {
+		expect(extractPathTokens("cat /tmp/in>/tmp/out")).toEqual(["/tmp/in", "/tmp/out"]);
+	});
 });

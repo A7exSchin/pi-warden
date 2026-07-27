@@ -205,6 +205,9 @@ describe("evaluate — paths", () => {
 		const writeDec = evaluate("bash", { command: "cp /src /tmp/dest" }, set, CWD, false);
 		expect(writeDec.action).toBe("block");
 
+		// Redirection survives tokenizing: `>` is still seen as write intent.
+		expect(evaluate("bash", { command: 'echo "hi" > /tmp/out' }, set, CWD, false).action).toBe("block");
+
 		// cat does not trigger write intent
 		const readDec = evaluate("bash", { command: "cat /tmp/file" }, set, CWD, false);
 		expect(readDec.action).toBe("allow");
@@ -235,6 +238,18 @@ describe("evaluate — paths", () => {
 		});
 		// Quote-stripping must not leak into path extraction.
 		expect(evaluate("bash", { command: 'cat "/tmp/secret"' }, set, CWD, false).action).toBe("block");
+	});
+
+	it("governs a quoted path whose rule directory contains a space", () => {
+		const set = compileConfig({
+			paths: { default: "allow", rules: [{ id: "vault", dir: "/tmp/my vault", action: "block" }] },
+		});
+		// Regression: splitting on quote characters fragmented this into "/tmp/my"
+		// + "vault/secret.md", so neither candidate matched the rule and the call
+		// was allowed — a bypass for any protected directory containing a space.
+		expect(evaluate("bash", { command: 'cat "/tmp/my vault/secret.md"' }, set, CWD, false).action).toBe("block");
+		expect(evaluate("bash", { command: "cat /tmp/my\\ vault/secret.md" }, set, CWD, false).action).toBe("block");
+		expect(evaluate("bash", { command: "cat '/tmp/my vault/secret.md'" }, set, CWD, false).action).toBe("block");
 	});
 
 	it("documented trade-off: a write verb hidden in quotes is not detected", () => {

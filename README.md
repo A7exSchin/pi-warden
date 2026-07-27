@@ -122,7 +122,7 @@ Config lives at `~/.pi/agent/pi-warden.rules.json` (override with env `PI_WARDEN
 
 ## Scope limits
 
-- **bash is arbitrary shell.** Path extraction is best-effort (splits on whitespace/shell metacharacters, keeps tokens with `/` or `~`). Obfuscation via `$HOME`, variables, base64, or quote-splitting is not caught.
+- **bash is arbitrary shell.** Path extraction is best-effort: the command is tokenized with quote awareness (quoted paths containing spaces stay intact, escapes are honoured), then tokens containing `/` or starting with `~` are treated as paths. Obfuscation via `$HOME`, variables, `$(...)` or base64 is not resolved.
 - **Write intent for bash is a heuristic.** Read vs write is inferred from write verbs (`mv`, `cp`, `tee`, `>`, …) in the command. Quoted spans are blanked out first, so `grep -c "... mv-command" file` is correctly treated as a read. The deliberate cost: a write hidden in quotes (`bash -c "mv a b"`) is not detected as write intent. This only affects `on: "read"` / `on: "write"` path scoping — command rules are matched against the raw command and are unaffected.
 - **Block messages are instructions, not true enforcement.** A sufficiently adversarial prompt injection could ignore them. True isolation requires a container or separate OS user.
 - **`confirm` requires an interactive UI.** Headless / `-p` mode fails closed with a message directing the user to governance unlock.
