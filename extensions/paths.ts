@@ -42,6 +42,10 @@ export function isPathUnder(child: string, dir: string): boolean {
  * Best-effort extraction of path-like tokens from a shell command. Splits on
  * whitespace and shell metacharacters, then keeps tokens that look like paths
  * (contain "/" or start with "~"). Heuristic — see SCOPE LIMIT in the header.
+ *
+ * NOTE: quoted spans are intentionally NOT stripped here (unlike stripQuoted in
+ * evaluator.ts). Quoting is the normal way to pass a path containing spaces, so
+ * discarding quoted text would hide real paths from the path rules.
  */
 export function extractPathTokens(cmd: string): string[] {
 	return cmd

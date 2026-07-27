@@ -1,9 +1,34 @@
 import type { CompiledSet, Decision, PathAction, PathOp } from "./types.js";
-import { resolvePathSafe, isPathUnder, extractPathTokens } from "./paths.js";
+import { resolvePathSafe, isPathUnder, extractPathTokens, MAX_TEST_LEN } from "./paths.js";
 
 /** Heuristic: does a shell command appear to WRITE (vs only read)? Best-effort. */
 const BASH_WRITE_INTENT =
 	/(>>?|\btee\b|\bsed\b\s+-i|\bmv\b|\bcp\b|\brm\b|\brmdir\b|\bdd\b|\btruncate\b|\bchmod\b|\bchown\b|\bln\b|\bmkdir\b|\btouch\b|\binstall\b)/;
+
+/**
+ * Blank out quoted spans so the write-intent heuristic sees only the *unquoted*
+ * shell text. Without this, `grep -c "... mv-command" file` matches `\bmv\b`
+ * inside a string literal and a read-only command is misclassified as a write.
+ *
+ * Replaced with a space (not "") so removing a span cannot fuse two fragments
+ * into a phantom verb (`foo"x"mv` -> `foo mv`, still correctly word-bounded).
+ *
+ * SCOPE LIMIT: best-effort, like the rest of the bash heuristics. Escaped
+ * quotes (\"), mixed/adjacent quoting, $'...' and heredocs are not handled.
+ *
+ * TRADE-OFF (deliberate): a write command hidden inside quotes — e.g.
+ * `bash -c "mv a b"` — is no longer detected as write intent. Accepted because
+ * (a) this only relaxes a path *scope* heuristic, never a command rule (`rm -rf`
+ * and friends still block via the commands section), and (b) the false-positive
+ * case is far more common than the hidden-write case.
+ *
+ * Deliberately NOT applied to path extraction: quoting is the normal way to
+ * pass a path containing spaces (`cat "/my dir/file"`), so stripping quotes
+ * there would blind warden to real paths. See extractPathTokens in paths.ts.
+ */
+export function stripQuoted(cmd: string): string {
+	return cmd.slice(0, MAX_TEST_LEN).replace(/"[^"]*"|'[^']*'/g, " ");
+}
 
 /**
  * Prepended to every block reason fed back to the model. It cannot *guarantee*
@@ -55,7 +80,7 @@ function evaluatePaths(toolName: string, input: Record<string, unknown>, set: Co
 		candidates.push({ raw: input.path, op });
 	}
 	if (typeof input.command === "string") {
-		const op: PathOp = BASH_WRITE_INTENT.test(input.command) ? "write" : "read";
+		const op: PathOp = BASH_WRITE_INTENT.test(stripQuoted(input.command)) ? "write" : "read";
 		for (const t of extractPathTokens(input.command)) candidates.push({ raw: t, op });
 	}
 	if (candidates.length === 0) return { action: "allow" };

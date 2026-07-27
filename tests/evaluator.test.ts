@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import * as path from "node:path";
 import type { GateConfig, CompiledSet } from "../extensions/types.js";
 import { compile } from "../extensions/compiler.js";
-import { evaluate, composeReason } from "../extensions/evaluator.js";
+import { evaluate, composeReason, stripQuoted } from "../extensions/evaluator.js";
 
 // Use /tmp as cwd — on macOS it symlinks to /private/tmp, resolvePathSafe
 // handles that, so we use the resolved form in path rules.
@@ -208,6 +208,68 @@ describe("evaluate — paths", () => {
 		// cat does not trigger write intent
 		const readDec = evaluate("bash", { command: "cat /tmp/file" }, set, CWD, false);
 		expect(readDec.action).toBe("allow");
+	});
+
+	it("does not infer write intent from verbs inside quotes", () => {
+		const set = compileConfig({
+			paths: {
+				default: "allow",
+				rules: [{ id: "write-tmp", dir: "/tmp", on: "write", action: "block" }],
+			},
+		});
+		// Regression: \bmv\b matched inside the quoted literal, flagging a read as a write.
+		expect(evaluate("bash", { command: 'grep -c "... mv-command" /tmp/datei' }, set, CWD, false).action).toBe(
+			"allow",
+		);
+		// Second false-positive class: a write verb as an ordinary English word.
+		expect(evaluate("bash", { command: `grep 'install the app' /tmp/notes.txt` }, set, CWD, false).action).toBe(
+			"allow",
+		);
+		// Unquoted write verbs are still detected.
+		expect(evaluate("bash", { command: 'mv /tmp/a /tmp/b # "note"' }, set, CWD, false).action).toBe("block");
+	});
+
+	it("still governs paths that appear inside quotes", () => {
+		const set = compileConfig({
+			paths: { default: "allow", rules: [{ id: "block-tmp", dir: "/tmp", action: "block" }] },
+		});
+		// Quote-stripping must not leak into path extraction.
+		expect(evaluate("bash", { command: 'cat "/tmp/secret"' }, set, CWD, false).action).toBe("block");
+	});
+
+	it("documented trade-off: a write verb hidden in quotes is not detected", () => {
+		const set = compileConfig({
+			paths: {
+				default: "allow",
+				rules: [{ id: "write-tmp", dir: "/tmp", on: "write", action: "block" }],
+			},
+		});
+		// Accepted cost of the fix — pinned so it stays a conscious choice.
+		expect(evaluate("bash", { command: 'bash -c "mv /tmp/a /tmp/b"' }, set, CWD, false).action).toBe("allow");
+		// ...but command rules are unaffected by quoting.
+		const withCmdRule = compileConfig({
+			commands: { default: "allow", rules: [{ id: "no-rm", value: "rm -rf", action: "block" }] },
+		});
+		expect(evaluate("bash", { command: 'bash -c "rm -rf /tmp/x"' }, withCmdRule, CWD, false).action).toBe("block");
+	});
+});
+
+// ---------------------------------------------------------------------------
+// stripQuoted
+// ---------------------------------------------------------------------------
+
+describe("stripQuoted", () => {
+	it("blanks double- and single-quoted spans", () => {
+		expect(stripQuoted('grep -c "... mv-command" datei')).toBe("grep -c   datei");
+		expect(stripQuoted("grep 'mv x' datei")).toBe("grep   datei");
+	});
+
+	it("replaces with a space so fragments cannot fuse into a phantom verb", () => {
+		expect(stripQuoted('foo"x"mv')).toBe("foo mv");
+	});
+
+	it("leaves unquoted commands untouched", () => {
+		expect(stripQuoted("mv /a /b")).toBe("mv /a /b");
 	});
 });
 
